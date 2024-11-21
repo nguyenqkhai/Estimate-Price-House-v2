@@ -205,8 +205,8 @@ with st.form("predict_form"):
         area = st.number_input("Diện tích (m²)", min_value=0.0, step=1.0, help="Nhập diện tích của căn nhà.")
         floors = st.number_input("Số tầng", min_value=1, step=1, help="Nhập số tầng của căn nhà.")
         bedrooms = st.number_input("Số phòng ngủ", min_value=0, step=1, help="Nhập số phòng ngủ.")
-        bathrooms = st.number_input("Số nhà vệ sinh", min_value=0, step=1, help="Nhập số nhà vệ sinh.")
     with col2:
+        bathrooms = st.number_input("Số nhà vệ sinh", min_value=0, step=1, help="Nhập số nhà vệ sinh.")
         main_direction = st.selectbox("Hướng cửa chính", encoder.categories_[0], help="Chọn hướng cửa chính.")
         house_type = st.selectbox("Loại hình nhà ở", encoder.categories_[1], help="Chọn loại hình nhà ở.")
 
