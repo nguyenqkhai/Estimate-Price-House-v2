@@ -3,15 +3,12 @@ import pandas as pd
 import joblib
 import numpy as np
 
-# Load model và encoder
-model = joblib.load("model_estimate_price_house_v2.pkl")
-encoder = joblib.load("encoder_v2.pkl")
+model = joblib.load("model_estimate_price_house_v3.pkl")
+encoder = joblib.load("encoder_v3.pkl")
 
-# Các cột đặc trưng
 numeric_columns = ['Diện tích', 'Số tầng', 'Số phòng ngủ', 'Số nhà vệ sinh']
 categorical_columns = ['Hướng cửa chính', 'Loại hình nhà ở', 'Tên phường', 'Quận']
 
-# Mô phỏng dữ liệu ánh xạ quận với các phường
 district_to_wards = {
     "Quận 1": [
         "Phường Tân Định", "Phường Đa Kao", "Phường Bến Nghé",
@@ -151,56 +148,45 @@ district_to_wards = {
     ]
 }
 
-# Hàm xử lý dữ liệu đầu vào
 def preprocess_input(data, encoder, numeric_columns, categorical_columns):
-    # Loại bỏ các giá trị không xác định
     for col in categorical_columns:
         valid_categories = encoder.categories_[categorical_columns.index(col)]
         data[col] = data[col].apply(lambda x: x if x in valid_categories else None)
 
-    # Kiểm tra dữ liệu thiếu
     if data[categorical_columns].isnull().any().any():
         raise ValueError("Dữ liệu nhập không hợp lệ. Hãy kiểm tra lại các giá trị trong các cột phân loại.")
 
-    # Mã hóa cột phân loại
     encoded_features = pd.DataFrame(encoder.transform(data[categorical_columns]))
     encoded_features.columns = encoder.get_feature_names_out(categorical_columns)
 
-    # Ghép cột đặc trưng số và cột phân loại đã mã hóa
     features = pd.concat([data[numeric_columns], encoded_features], axis=1)
     return features
 
-# Giao diện Streamlit
 st.set_page_config(page_title="Dự đoán giá nhà", page_icon="🏠", layout="centered")
 
-# Tiêu đề và mô tả chính
 st.title("Dự đoán giá nhà 🏡")
 st.markdown("""
     Hãy nhập thông tin chi tiết về căn nhà của bạn để dự đoán giá trị của nó. 
     Mô hình sử dụng dữ liệu lịch sử để đưa ra dự đoán chính xác.
     """, unsafe_allow_html=True)
 
-# Lưu trạng thái cho quận và phường
 if "selected_district" not in st.session_state:
-    st.session_state.selected_district = None  # Khởi tạo giá trị mặc định
+    st.session_state.selected_district = None  
 if "selected_ward" not in st.session_state:
-    st.session_state.selected_ward = None  # Khởi tạo giá trị mặc định
+    st.session_state.selected_ward = None  
 
-# Chọn quận (ngoài form để hỗ trợ cập nhật động)
 districts = encoder.categories_[categorical_columns.index("Quận")]
 st.session_state.selected_district = st.selectbox(
     "Quận", districts, key="district", help="Chọn quận của căn nhà."
 )
 
-# Lọc danh sách phường dựa trên quận được chọn
 wards = district_to_wards.get(st.session_state.selected_district, [])
 st.session_state.selected_ward = st.selectbox(
     "Phường", wards, key="ward", help="Chọn phường của căn nhà."
 )
 
-# Form nhập liệu (không chứa chọn quận và phường)
 with st.form("predict_form"):
-    col1, col2 = st.columns(2)  # Chia thành 2 cột để bố trí form đẹp hơn
+    col1, col2 = st.columns(2) 
     with col1:
         area = st.number_input("Diện tích (m²)", min_value=0.0, step=1.0, help="Nhập diện tích của căn nhà.")
         floors = st.number_input("Số tầng", min_value=1, step=1, help="Nhập số tầng của căn nhà.")
@@ -210,12 +196,9 @@ with st.form("predict_form"):
         main_direction = st.selectbox("Hướng cửa chính", encoder.categories_[0], help="Chọn hướng cửa chính.")
         house_type = st.selectbox("Loại hình nhà ở", encoder.categories_[1], help="Chọn loại hình nhà ở.")
 
-    # Nút submit trong form
     submit_button = st.form_submit_button("Dự đoán giá nhà")
 
-# Xử lý khi nhấn nút
 if submit_button:
-    # Tạo DataFrame từ dữ liệu nhập
     new_data = pd.DataFrame({
         "Diện tích": [area],
         "Số tầng": [floors],
@@ -228,17 +211,26 @@ if submit_button:
     })
 
     try:
-        # Xử lý dữ liệu đầu vào
         X_new = preprocess_input(new_data, encoder, numeric_columns, categorical_columns)
-
-        # Dự đoán giá nhà
         predicted_price = model.predict(X_new)
-        st.success(f"Giá nhà dự đoán: {predicted_price[0]:,.0f} VNĐ", icon="✅")
-    except ValueError as e:
-        st.error(f"Lỗi: {e}", icon="❌")
+    
+        new_pred_value = predicted_price[0]
 
-# Thêm footer hoặc thông tin bổ sung
+        if new_pred_value >= 1e9:
+            formatted_value = round(new_pred_value / 1e9, 2)
+            st.success(f"Dự đoán giá trị mới: {formatted_value} tỷ VNĐ", icon="✅")
+        else:
+            formatted_value = round(new_pred_value / 1e6, 2)
+            st.success(f"Dự đoán giá trị mới: {formatted_value} triệu VNĐ", icon="✅")
+    except ValueError as e:
+        if "Dữ liệu nhập không hợp lệ" in str(e):
+            st.error("Xin lỗi, chúng tôi không đủ dữ liệu để dự đoán giá nhà ở khu vực này.", icon="❌")
+        else:
+            st.error(f"Lỗi: {e}", icon="❌")
+
+
+
 st.markdown("""
     ---  
-    <small>Ứng dụng dự đoán giá nhà được phát triển bởi nhóm 3.</small>
+    <small>Ứng dụng dự đoán giá nhà được phát triển bởi nhóm 5.</small>
     """, unsafe_allow_html=True)
